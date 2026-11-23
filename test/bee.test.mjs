@@ -1,0 +1,162 @@
+// End-to-end tests for the built CLI (dist/bee.mjs). Offline: git sources use a local repo.
+import { test, before } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const BEE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'bee.mjs');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bee-test-'));
+const CACHE = path.join(tmp, 'cache');
+
+function bee(cwd, ...args) {
+  const r = spawnSync(process.execPath, [BEE, ...args], { cwd, encoding: 'utf8', env: { ...process.env, BEE_CACHE: CACHE, NO_COLOR: '1' } });
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+const sh = (cwd, cmd, ...args) => {
+  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout.trim();
+};
+const gitc = (cwd, ...a) => sh(cwd, 'git', '-c', 'user.email=t@t', '-c', 'user.name=t', ...a);
+const read = p => JSON.parse(fs.readFileSync(p, 'utf8'));
+const project = name => { const d = path.join(tmp, name); fs.mkdirSync(d, { recursive: true }); return d; };
+const skill = (dir, name, body = '') => {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: test skill ${name}\n---\n# ${name}\n${body}`);
+};
+
+// A local "remote" repo with a skill, two commits apart.
+const remote = path.join(tmp, 'remote');
+let firstCommit;
+before(() => {
+  skill(path.join(remote, 'skills', 'lint'), 'lint', 'v1');
+  sh(remote, 'git', 'init', '-q', '-b', 'main');
+  gitc(remote, 'add', '-A'); gitc(remote, 'commit', '-qm', 'v1');
+  firstCommit = sh(remote, 'git', 'rev-parse', 'HEAD');
+});
+
+test('init (new project) installs the orchestrator and its bundled skills', () => {
+  const p = project('new-app');
+  const r = bee(p, 'init', '--yes', '--type', 'cli-lib', '--stage', 'new');
+  assert.equal(r.code, 0, r.out);
+  const m = read(path.join(p, 'harness.json'));
+  assert.ok(m.skills['product-builder']);
+  const lock = read(path.join(p, 'harness.lock'));
+  for (const s of ['spec', 'adr', 'feature-dev', 'product-research']) {
+    assert.deepEqual(lock.skills[s].requiredBy, ['product-builder'], s);
+    assert.ok(fs.existsSync(path.join(p, '.claude/skills', s, 'SKILL.md')), s);
+  }
+  assert.ok(fs.existsSync(path.join(p, '.claude/agents/researcher.md')));
+  assert.match(fs.readFileSync(path.join(p, '.claude/skills/.gitignore'), 'utf8'), /^\/spec\/$/m);
+  assert.match(fs.readFileSync(path.join(p, 'CLAUDE.md'), 'utf8'), /bee:start[\s\S]*docs\/adr/);
+  assert.match(fs.readFileSync(path.join(p, '.claude/settings.json'), 'utf8'), /bee install/);
+});
+
+test('init detects an existing codebase and picks feature-change', () => {
+  const p = project('existing');
+  fs.writeFileSync(path.join(p, 'package.json'), JSON.stringify({ dependencies: { express: '4' } }));
+  const r = bee(p, 'init', '--yes', '--no-hook');
+  assert.equal(r.code, 0, r.out);
+  const m = read(path.join(p, 'harness.json'));
+  assert.equal(m.project.type, 'api');
+  assert.equal(m.project.stage, 'existing');
+  assert.ok(m.skills['feature-change']);
+  assert.ok(!fs.existsSync(path.join(p, '.claude/settings.json')));
+});
+
+test('git sources are pinned; a teammate gets the same commit even after upstream moves', () => {
+  const p = project('pinned');
+  assert.equal(bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook').code, 0);
+  const r = bee(p, 'add', `git+file://${remote}::skills/lint#main`);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(read(path.join(p, 'harness.lock')).skills.lint.commit, firstCommit);
+
+  // Upstream publishes v2.
+  fs.appendFileSync(path.join(remote, 'skills/lint/SKILL.md'), 'v2');
+  gitc(remote, 'commit', '-qam', 'v2');
+
+  // Teammate: fresh copy with only committed files, then bee install.
+  const mate = project('pinned-mate');
+  for (const f of ['harness.json', 'harness.lock']) fs.copyFileSync(path.join(p, f), path.join(mate, f));
+  assert.equal(bee(mate, 'install').code, 0);
+  assert.doesNotMatch(fs.readFileSync(path.join(mate, '.claude/skills/lint/SKILL.md'), 'utf8'), /v2/);
+  assert.deepEqual(read(path.join(mate, 'harness.lock')), read(path.join(p, 'harness.lock')));
+
+  // bee update moves to v2 and re-pins.
+  assert.equal(bee(mate, 'update', 'lint').code, 0);
+  assert.match(fs.readFileSync(path.join(mate, '.claude/skills/lint/SKILL.md'), 'utf8'), /v2/);
+  assert.notEqual(read(path.join(mate, 'harness.lock')).skills.lint.commit, firstCommit);
+});
+
+test('install refuses content that does not match the lock', () => {
+  const p = project('tamper');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  const lockPath = path.join(p, 'harness.lock');
+  const lock = read(lockPath);
+  lock.skills.spec.integrity = 'sha256-tampered';
+  fs.writeFileSync(lockPath, JSON.stringify(lock));
+  const r = bee(p, 'install');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /spec: content differs from harness.lock/);
+});
+
+test('local edits to an installed skill are protected unless --force', () => {
+  const p = project('edits');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  const f = path.join(p, '.claude/skills/adr/SKILL.md');
+  fs.appendFileSync(f, '\nmy edit');
+  const r = bee(p, 'install');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /edited locally/);
+  assert.match(fs.readFileSync(f, 'utf8'), /my edit/);
+  assert.match(bee(p, 'list').out, /adr .*modified locally/);
+  assert.equal(bee(p, 'install', '--force').code, 0);
+  assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /my edit/);
+});
+
+test('unmanaged skill folders are never clobbered; hand-made skills stay out of .gitignore', () => {
+  const p = project('unmanaged');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  skill(path.join(p, '.claude/skills/mine'), 'mine');
+  skill(path.join(p, '.claude/skills/pdf'), 'pdf');
+  const r = bee(p, 'add', 'pdf');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /not managed by bee/);
+  assert.doesNotMatch(fs.readFileSync(path.join(p, '.claude/skills/.gitignore'), 'utf8'), /mine/);
+});
+
+test('--frozen fails when harness.json and harness.lock disagree', () => {
+  const p = project('frozen');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  skill(path.join(p, 'tools/deploy'), 'deploy');
+  const m = read(path.join(p, 'harness.json'));
+  m.skills.deploy = 'file:./tools/deploy';
+  fs.writeFileSync(path.join(p, 'harness.json'), JSON.stringify(m));
+  const before = fs.readFileSync(path.join(p, 'harness.lock'), 'utf8');
+  const r = bee(p, 'install', '--frozen');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /deploy: missing in harness.lock/);
+  assert.equal(fs.readFileSync(path.join(p, 'harness.lock'), 'utf8'), before);
+});
+
+test('remove prunes the skill, its bundled skills, and their agents', () => {
+  const p = project('remove');
+  bee(p, 'init', '--yes', '--stage', 'new', '--type', 'cli-lib', '--no-hook');
+  assert.match(bee(p, 'remove', 'spec').out, /bundled by product-builder/);
+  assert.equal(bee(p, 'remove', 'product-builder').code, 0);
+  assert.ok(!fs.existsSync(path.join(p, '.claude/skills/product-research')));
+  assert.ok(!fs.existsSync(path.join(p, '.claude/agents/researcher.md')));
+  assert.ok(fs.existsSync(path.join(p, '.claude/skills/skill-forge')));
+  assert.equal(read(path.join(p, 'harness.lock')).skills.spec, undefined);
+});
+
+test('search --json lists registry skills with install state', () => {
+  const p = project('search');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  const hits = JSON.parse(bee(p, 'search', 'adr', '--json').out);
+  const adr = hits.find(h => h.name === 'adr');
+  assert.ok(adr && adr.installed);
+});

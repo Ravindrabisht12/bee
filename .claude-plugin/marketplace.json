@@ -1,0 +1,11 @@
+{
+  "name": "skill-to-kill",
+  "owner": { "name": "skill-to-kill" },
+  "plugins": [
+    {
+      "name": "skill-to-kill",
+      "source": "./",
+      "description": "Product-team skill library: idea → research → competitors → design → build → docs → interactive explainer."
+    }
+  ]
+}

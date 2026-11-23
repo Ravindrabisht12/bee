@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feature Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" id="hl-light" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" id="hl-dark" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" disabled>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --surface-2:#f0efeb; --text:#1c1c1a; --muted:#6b6a66;
+  --border:#e3e1db; --accent:#4f46e5; --accent-soft:#eef0ff;
+  --new:#0f8a5f; --new-bg:#e3f6ee; --changed:#b26a00; --changed-bg:#fff2dc;
+  --fixed:#2563eb; --fixed-bg:#e5eeff; --removed:#c2410c; --removed-bg:#ffe9df;
+  --radius:12px; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121212; --surface:#1b1b1b; --surface-2:#242424; --text:#ececec; --muted:#9a9a9a;
+    --border:#2e2e2e; --accent:#8b85ff; --accent-soft:#25234a;
+    --new:#4ade9b; --new-bg:#123326; --changed:#f5b54a; --changed-bg:#3a2a0e;
+    --fixed:#7aa7ff; --fixed-bg:#16264a; --removed:#ff8a5c; --removed-bg:#3d1c10;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121212; --surface:#1b1b1b; --surface-2:#242424; --text:#ececec; --muted:#9a9a9a;
+  --border:#2e2e2e; --accent:#8b85ff; --accent-soft:#25234a;
+  --new:#4ade9b; --new-bg:#123326; --changed:#f5b54a; --changed-bg:#3a2a0e;
+  --fixed:#7aa7ff; --fixed-bg:#16264a; --removed:#ff8a5c; --removed-bg:#3d1c10;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;overflow-x:hidden;background:var(--bg);color:var(--text);font:15px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+code,pre{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px}
+:not(pre)>code{background:var(--surface-2);padding:1px 6px;border-radius:5px;font-size:.88em}
+a{color:var(--accent)}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;max-width:1180px;margin:0 auto;padding:40px 24px 80px}
+nav.toc{position:sticky;top:24px;align-self:start}
+nav.toc .brand{font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+nav.toc a{display:block;padding:6px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px}
+nav.toc a:hover{background:var(--surface-2);color:var(--text)}
+nav.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.progress{margin-top:20px;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;color:var(--muted)}
+.bar{height:6px;background:var(--surface-2);border-radius:99px;margin-top:6px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.theme-btn{margin-top:12px;width:100%;padding:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;cursor:pointer;font:inherit;font-size:13px}
+header.hero{margin-bottom:36px}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15;margin:10px 0 8px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:17px;margin:0}
+.meta{color:var(--muted);font-size:13px;margin-top:12px}
+section{margin-bottom:48px}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.oneliner{font-size:19px;font-weight:500;line-height:1.5;margin:0 0 12px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.stat{flex:1 1 120px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat b{display:block;font-size:24px;letter-spacing:-.02em}
+.stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:99px}
+.b-new,.b-added{color:var(--new);background:var(--new-bg)}
+.b-changed,.b-modified{color:var(--changed);background:var(--changed-bg)}
+.b-fixed{color:var(--fixed);background:var(--fixed-bg)}
+.b-removed,.b-deleted{color:var(--removed);background:var(--removed-bg)}
+.review{display:grid;gap:10px}
+.review .item{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px}
+.review .id{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted)}
+.review .t{font-weight:600}
+.review .t a{color:inherit}
+.review .why{grid-column:2 / -1;margin-top:-6px}
+.meter{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
+.meter .bar{width:80px;margin:0}
+.feature h3{margin:8px 0 6px;font-size:16px}
+.feature p{margin:0 0 6px}
+.why{color:var(--muted);font-size:14px}
+.why::before{content:"Why: ";font-weight:600;color:var(--text)}
+.ba{display:grid;grid-template-columns:140px 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.ba>div{padding:12px 16px;border-top:1px solid var(--border)}
+.ba>.h{border-top:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--surface-2)}
+.ba .area{font-weight:600}
+.ba .before{color:var(--muted);text-decoration-color:var(--removed)}
+.ba .after{background:color-mix(in srgb,var(--new-bg) 50%,transparent)}
+.diagram{margin-bottom:16px}
+.diagram .mermaid{overflow-x:auto;text-align:center;padding:12px 0}
+.diagram .mermaid svg{max-width:none;height:auto}
+.caption{color:var(--muted);font-size:13px;margin-top:6px}
+.steps{display:flex;flex-direction:column;gap:10px}
+details.step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+details.step>summary{list-style:none;cursor:pointer;padding:16px 20px;display:flex;gap:12px;align-items:center;font-weight:600}
+details.step>summary::-webkit-details-marker{display:none}
+details.step>summary::after{content:"+";margin-left:auto;color:var(--muted);font-size:20px;font-weight:400}
+details.step[open]>summary::after{content:"−"}
+.step .body{padding:0 20px 20px}
+.step .file{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);font-weight:400}
+.step pre{margin:12px 0;border-radius:10px;overflow:auto;border:1px solid var(--border)}
+.step pre code.hljs{padding:14px 16px}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin-top:10px;font-size:14px}
+.callout.tip{border-color:var(--changed);background:var(--changed-bg)}
+.callout b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.files{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.files .row{display:grid;grid-template-columns:90px minmax(0,1.2fr) minmax(0,2fr);gap:12px;padding:10px 16px;border-top:1px solid var(--border);align-items:center}
+.files .row:first-child{border-top:0}
+.files .path{font-family:"JetBrains Mono",monospace;font-size:13px;word-break:break-all}
+.files .role{color:var(--muted);font-size:14px}
+.filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.filter button{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}
+.filter button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.try label{display:flex;gap:12px;padding:14px 16px;border-top:1px solid var(--border);cursor:pointer;align-items:flex-start}
+.try label:first-child{border-top:0}
+.try input{margin-top:4px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.try .expect{display:block;color:var(--muted);font-size:14px}
+.try .expect::before{content:"Expect → "}
+.try label.done .text{text-decoration:line-through;color:var(--muted)}
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.gloss .card{padding:14px 16px}
+.gloss dt{font-weight:600}
+.gloss dd{margin:4px 0 0;color:var(--muted);font-size:14px}
+.q{margin-bottom:14px}
+.q p.qt{font-weight:600;margin:0 0 10px}
+.q button.opt{display:block;width:100%;text-align:left;margin-top:6px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}
+.q button.opt:hover:not(:disabled){border-color:var(--accent)}
+.q button.opt.right{border-color:var(--new);background:var(--new-bg)}
+.q button.opt.wrong{border-color:var(--removed);background:var(--removed-bg)}
+.q .explain{margin-top:10px;font-size:14px;color:var(--muted);display:none}
+.q.answered .explain{display:block}
+ul.clean{margin:0;padding-left:20px}
+ul.clean li{margin:4px 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.empty{color:var(--muted);font-style:italic}
+@media (max-width:860px){
+  .layout{grid-template-columns:minmax(0,1fr);padding:24px 16px 60px;gap:20px}
+  nav.toc{position:sticky;top:0;z-index:5;background:var(--bg);margin:0 -16px;padding:8px 16px;border-bottom:1px solid var(--border)}
+  #toc-links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+  nav.toc a{white-space:nowrap;font-size:13px;padding:5px 10px}
+  nav.toc .brand,nav.toc .progress,nav.toc .theme-btn{display:none}
+  .ba{grid-template-columns:1fr}
+  .ba>.h{display:none}
+  .ba .area{background:var(--surface-2)}
+  .files .row{grid-template-columns:1fr}
+  .review .item{grid-template-columns:1fr}
+  .review .why{grid-column:auto;margin-top:0}
+  .two{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" id="toc">
+    <div class="brand">Explainer</div>
+    <div id="toc-links"></div>
+    <div class="progress" id="progress" hidden>
+      <div id="progress-label">Progress</div>
+      <div class="bar"><i id="progress-bar"></i></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button">Toggle theme</button>
+  </nav>
+  <main id="main"></main>
+</div>
+
+<script>
+const DATA = /*__EXPLAINER_DATA__*/null;
+
+(function(){
+  const $ = (s, r=document) => r.querySelector(s);
+  const el = (tag, attrs={}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k,v] of Object.entries(attrs)) {
+      if (v == null) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'html') n.innerHTML = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    for (const k of kids.flat()) if (k != null) n.append(k.nodeType ? k : document.createTextNode(k));
+    return n;
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // Inline markdown: `code` and **bold**, everything else escaped.
+  const md = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const rich = (tag, s, cls) => el(tag, {class: cls, html: md(s)});
+  const has = a => Array.isArray(a) && a.length > 0;
+  const store = {
+    get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+    set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  };
+
+  // ---- theme ----
+  const root = document.documentElement;
+  const sysDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : sysDark();
+  const savedTheme = store.get('explainer-theme');
+  if (savedTheme) root.dataset.theme = savedTheme;
+  const syncHl = () => { $('#hl-light').disabled = isDark(); $('#hl-dark').disabled = !isDark(); };
+  syncHl();
+  $('#theme-btn').onclick = () => {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    store.set('explainer-theme', root.dataset.theme);
+    syncHl(); renderDiagrams();
+  };
+
+  const main = $('#main');
+  if (!DATA) { main.append(el('p', {class:'empty'}, 'No explainer data. Run scripts/render.py on an explainer.json.')); return; }
+  document.title = DATA.title;
+  const key = 'explainer:' + DATA.title;
+  const sections = [];
+  const addSection = (id, title, lead, ...body) => {
+    sections.push({id, title});
+    main.append(el('section', {id}, el('h2', {}, title), lead ? rich('p', lead, 'lead') : null, ...body));
+  };
+
+  // ---- hero ----
+  main.append(el('header', {class:'hero'},
+    el('div', {class:'eyebrow'}, DATA.mode === 'change' ? 'What changed' : 'What we built'),
+    el('h1', {}, DATA.title),
+    DATA.subtitle ? rich('p', DATA.subtitle, 'sub') : null,
+    (DATA.date || DATA.audience) ? el('div', {class:'meta'}, [DATA.date, DATA.audience && ('For: ' + DATA.audience)].filter(Boolean).join(' · ')) : null
+  ));
+
+  // ---- summary ----
+  const S = DATA.summary || {};
+  if (S.oneLiner || has(S.bullets) || has(DATA.stats)) {
+    addSection('summary', 'In one minute', null,
+      (S.oneLiner || has(S.bullets)) ? el('div', {class:'card'},
+        S.oneLiner ? rich('p', S.oneLiner, 'oneliner') : null,
+        has(S.bullets) ? el('ul', {class:'clean'}, S.bullets.map(b => rich('li', b))) : null) : null,
+      has(DATA.stats) ? el('div', {class:'stats'}, DATA.stats.map(s => el('div', {class:'stat'}, el('b', {}, s.value), el('span', {}, s.label)))) : null
+    );
+  }
+
+  // ---- features ----
+  if (has(DATA.features)) {
+    addSection('features', 'Features', 'Each card is one capability: what it does, and why it exists.',
+      el('div', {class:'grid'}, DATA.features.map(f => el('div', {class:'card feature'},
+        f.status ? el('span', {class:'badge b-' + f.status}, f.status) : null,
+        el('h3', {}, f.name || ''),
+        f.what ? rich('p', f.what) : null,
+        f.why ? rich('p', f.why, 'why') : null)))
+    );
+  }
+
+  // ---- before / after ----
+  if (has(DATA.beforeAfter)) {
+    const grid = el('div', {class:'ba'}, el('div', {class:'h'}, 'Area'), el('div', {class:'h'}, 'Before'), el('div', {class:'h'}, 'After'));
+    DATA.beforeAfter.forEach(r => grid.append(rich('div', r.area, 'area'), rich('div', r.before, 'before'), rich('div', r.after, 'after')));
+    addSection('before-after', 'Before → After', null, grid);
+  }
+
+  // ---- specs & decisions (the review surface) ----
+  const statusClass = s => { s = String(s || '').toLowerCase();
+    if (/accepted|approved|implemented/.test(s)) return 'b-new';
+    if (/superseded|rejected|deprecated/.test(s)) return 'b-removed';
+    return 'b-changed'; };
+  const titleNode = x => x.href ? el('a', {href: x.href, target:'_blank', rel:'noopener'}, x.title || '') : (x.title || '');
+  if (has(DATA.specs)) {
+    addSection('specs', 'Specs', 'The contracts this work was built against. Coverage = acceptance criteria referenced by tests.',
+      el('div', {class:'review'}, DATA.specs.map(s => {
+        const total = +s.total || 0, cov = +s.covered || 0;
+        const meter = total ? el('span', {class:'meter'}, el('span', {class:'bar'}, el('i', {style:`width:${100*cov/total}%`})), `${cov}/${total} ACs`) : null;
+        return el('div', {class:'card item'}, el('span', {class:'id'}, s.id || ''),
+          el('span', {}, el('span', {class:'t'}, titleNode(s)), ' ', s.status ? el('span', {class:'badge ' + statusClass(s.status)}, s.status) : null),
+          meter || el('span'), s.goal ? rich('div', s.goal, 'why') : null);
+      })));
+  }
+  if (has(DATA.decisions)) {
+    const pending = DATA.decisions.filter(d => /proposed/i.test(d.status || '')).length;
+    addSection('decisions', 'Decisions (ADRs)', pending ? `**${pending} decision${pending > 1 ? 's' : ''} waiting for your review** (status Proposed).` : 'Every decision behind this work, with the reason it won.',
+      el('div', {class:'review'}, DATA.decisions.map(d => el('div', {class:'card item'},
+        el('span', {class:'id'}, d.id || ''), el('span', {class:'t'}, titleNode(d)),
+        d.status ? el('span', {class:'badge ' + statusClass(d.status)}, d.status) : el('span'),
+        d.why ? rich('div', d.why, 'why') : null))));
+  }
+
+  // ---- diagrams ----
+  const diagramNodes = [];
+  if (has(DATA.diagrams)) {
+    addSection('diagrams', 'How it fits together', 'The real flow, with the real component names.',
+      DATA.diagrams.map(d => {
+        const m = el('div', {class:'mermaid'});
+        diagramNodes.push({node: m, src: d.mermaid || ''});
+        return el('div', {class:'card diagram'}, d.title ? el('h3', {style:'margin:0 0 4px;font-size:16px'}, d.title) : null, m, d.caption ? rich('div', d.caption, 'caption') : null);
+      })
+    );
+  }
+
+  // ---- walkthrough ----
+  if (has(DATA.walkthrough)) {
+    addSection('walkthrough', 'Code walkthrough', 'Read these in order. Open a step to see the code and the reasoning behind it.',
+      el('div', {class:'steps'}, DATA.walkthrough.map((w, i) => {
+        const body = el('div', {class:'body'},
+          w.explain ? rich('p', w.explain) : null,
+          w.code ? el('pre', {}, el('code', {class: w.lang ? 'language-' + w.lang : ''}, w.code)) : null,
+          w.why ? el('div', {class:'callout'}, el('b', {}, 'Why this way'), rich('span', w.why)) : null,
+          w.tip ? el('div', {class:'callout tip'}, el('b', {}, 'Watch out'), rich('span', w.tip)) : null);
+        return el('details', {class:'step', ...(i === 0 ? {open:''} : {})},
+          el('summary', {}, el('span', {}, w.title), w.file ? el('span', {class:'file'}, w.file) : null), body);
+      }))
+    );
+  }
+
+  // ---- files ----
+  if (has(DATA.files)) {
+    const box = el('div', {class:'files'});
+    const draw = f => { box.replaceChildren(...DATA.files.filter(x => !f || x.status === f).map(x =>
+      el('div', {class:'row'}, el('span', {}, x.status ? el('span', {class:'badge b-' + x.status}, x.status) : ''), el('span', {class:'path'}, x.path), rich('span', x.role || '', 'role')))); };
+    const statuses = [...new Set(DATA.files.map(f => f.status).filter(Boolean))];
+    const filter = el('div', {class:'filter'});
+    const mk = (label, val) => { const b = el('button', {type:'button', class: val === null ? 'on' : ''}, label);
+      b.onclick = () => { filter.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); draw(val); }; return b; };
+    filter.append(mk('All ' + DATA.files.length, null), ...statuses.map(s => mk(s, s)));
+    draw(null);
+    addSection('files', 'File map', 'Where everything lives, and what each file is responsible for.', statuses.length > 1 ? filter : null, box);
+  }
+
+  // ---- try it ----
+  const progress = {tryDone: 0, tryTotal: 0, quizRight: 0, quizDone: 0, quizTotal: 0};
+  const saved = store.get(key) || {};
+  if (has(DATA.tryIt)) {
+    progress.tryTotal = DATA.tryIt.length;
+    const checks = saved.checks || [];
+    addSection('try', 'Try it yourself', 'Follow the steps and tick each one off. Your progress is saved in this browser.',
+      el('div', {class:'card try', style:'padding:0'}, DATA.tryIt.map((t, i) => {
+        const cb = el('input', {type:'checkbox'});
+        const lab = el('label', {}, cb, el('span', {}, rich('span', t.step, 'text'), t.expect ? rich('span', t.expect, 'expect') : null));
+        cb.checked = !!checks[i]; lab.classList.toggle('done', cb.checked);
+        cb.onchange = () => { checks[i] = cb.checked; lab.classList.toggle('done', cb.checked); saved.checks = checks; store.set(key, saved); updateProgress(); };
+        return lab;
+      }))
+    );
+  }
+
+  // ---- glossary ----
+  if (has(DATA.glossary)) {
+    addSection('glossary', 'Glossary', null,
+      el('dl', {class:'gloss', style:'margin:0'}, DATA.glossary.map(g => el('div', {class:'card'}, el('dt', {}, g.term), rich('dd', g.meaning)))));
+  }
+
+  // ---- quiz ----
+  if (has(DATA.quiz)) {
+    progress.quizTotal = DATA.quiz.length;
+    addSection('quiz', 'Check your understanding', 'Quick questions about why things work the way they do.',
+      DATA.quiz.map(q => {
+        const box = el('div', {class:'card q'}, rich('p', q.q, 'qt'));
+        const btns = (q.options || []).map((o, i) => {
+          const b = el('button', {type:'button', class:'opt', html: md(o)});
+          b.onclick = () => {
+            btns.forEach((x, j) => { x.disabled = true; if (j === q.answer) x.classList.add('right'); });
+            if (i !== q.answer) b.classList.add('wrong'); else progress.quizRight++;
+            progress.quizDone++; box.classList.add('answered'); updateProgress();
+          };
+          return b;
+        });
+        box.append(...btns, q.explain ? rich('div', q.explain, 'explain') : null);
+        return box;
+      })
+    );
+  }
+
+  // ---- limitations / next steps ----
+  if (has(DATA.limitations) || has(DATA.nextSteps)) {
+    addSection('next', 'Limits & next steps', null, el('div', {class:'two'},
+      has(DATA.limitations) ? el('div', {class:'card'}, el('h3', {style:'margin:0 0 8px;font-size:16px'}, 'Known limitations'), el('ul', {class:'clean'}, DATA.limitations.map(x => rich('li', x)))) : null,
+      has(DATA.nextSteps) ? el('div', {class:'card'}, el('h3', {style:'margin:0 0 8px;font-size:16px'}, 'Next steps'), el('ul', {class:'clean'}, DATA.nextSteps.map(x => rich('li', x)))) : null));
+  }
+  if (has(DATA.links)) {
+    addSection('links', 'Further reading', null, el('ul', {class:'clean'}, DATA.links.map(l => el('li', {}, el('a', {href: l.href, target:'_blank', rel:'noopener'}, l.label)))));
+  }
+
+  // ---- toc + scrollspy ----
+  const tocLinks = $('#toc-links');
+  sections.forEach(s => tocLinks.append(el('a', {href:'#' + s.id, 'data-id': s.id}, s.title)));
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) tocLinks.querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.id === e.target.id));
+  }), {rootMargin: '-20% 0px -70% 0px'});
+  sections.forEach(s => io.observe(document.getElementById(s.id)));
+
+  function updateProgress(){
+    const total = progress.tryTotal + progress.quizTotal;
+    if (!total) return;
+    progress.tryDone = (saved.checks || []).filter(Boolean).length;
+    const done = progress.tryDone + progress.quizDone;
+    $('#progress').hidden = false;
+    $('#progress-bar').style.width = (100 * done / total) + '%';
+    $('#progress-label').textContent = `${done}/${total} done` + (progress.quizDone ? ` · quiz ${progress.quizRight}/${progress.quizDone}` : '');
+  }
+  updateProgress();
+
+  // ---- code highlighting ----
+  if (window.hljs) document.querySelectorAll('pre code').forEach(c => { try { hljs.highlightElement(c); } catch(e){} });
+
+  // ---- diagrams ----
+  async function renderDiagrams(){
+    if (!window.mermaid || !diagramNodes.length) {
+      diagramNodes.forEach(d => { d.node.replaceChildren(el('pre', {style:'text-align:left'}, d.src)); });
+      return;
+    }
+    try { await document.fonts.ready; } catch(e){}
+    mermaid.initialize({startOnLoad:false, theme: isDark() ? 'dark' : 'neutral', securityLevel:'strict', fontFamily:'Inter, sans-serif',
+      flowchart:{useMaxWidth:false, htmlLabels:true}, sequence:{useMaxWidth:false}});
+    for (let i = 0; i < diagramNodes.length; i++) {
+      const d = diagramNodes[i];
+      try { const {svg} = await mermaid.render('mmd-' + i + '-' + Date.now(), d.src); d.node.innerHTML = svg; }
+      catch(e){ d.node.replaceChildren(el('pre', {style:'text-align:left'}, d.src), el('div', {class:'caption'}, 'Diagram failed to render: ' + e.message)); }
+    }
+  }
+  renderDiagrams();
+})();
+</script>
+</body>
+</html>
