@@ -23,7 +23,7 @@ for t in $TARGETS; do
   case "$t" in windows-*) exe=bee.exe ;; esac
   mkdir -p "$stage/bin"
   "$BUN" build src/cli.ts --compile --minify --target="bun-$t" --outfile "$stage/bin/$exe" >/dev/null
-  cp -R skills agents registry.json package.json "$stage/"
+  cp -R skills agents registry.json package.json LICENSE "$stage/"
   find "$stage" \( -name '__pycache__' -o -name '.DS_Store' \) -prune -exec rm -rf {} +
   case "$t" in
     windows-*) (cd "$OUT/stage" && zip -qr "../$name.zip" "$name") ;;

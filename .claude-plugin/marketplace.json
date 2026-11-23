@@ -1,9 +1,9 @@
 {
-  "name": "skill-to-kill",
-  "owner": { "name": "skill-to-kill" },
+  "name": "bee",
+  "owner": { "name": "Ravindrabisht12" },
   "plugins": [
     {
-      "name": "skill-to-kill",
+      "name": "bee",
       "source": "./",
       "description": "Product-team skill library: idea → research → competitors → design → build → docs → interactive explainer."
     }

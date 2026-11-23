@@ -2,14 +2,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { INSTALL_URL, LEGACY_MANIFEST, LIB, LOCKFILE, MANIFEST, PKG, PROJECT_TYPES, REGISTRY, TARGETS, WORKFLOWS, regEntry } from './config.js';
-import { hashDir, sortKeys, writeJSON } from './fsutil.js';
+import { INSTALL_URL, LEGACY_MANIFEST, LIB, LOCKFILE, MANIFEST, PKG, REPO, PROJECT_TYPES, REGISTRY, TARGETS, WORKFLOWS, regEntry } from './config.js';
+import { frontmatter, hashDir, sortKeys, writeJSON } from './fsutil.js';
+import { compareVersions, fetchLatestVersion } from './update.js';
 import { findRoot, install, loadProject, report, syncClaudeMd, targetsOf, writeHook } from './install.js';
 import { prompter } from './prompts.js';
 import { aiRecommend, detectProject, recommend } from './recommend.js';
 import { parseSource, resolveInput } from './sources.js';
 import { bold, cyan, die, dim, green, log, red, short, warn, yellow } from './ui.js';
-import type { Flags, Manifest, ProjectInfo, TargetName } from './types.js';
+import type { Flags, Manifest, ProjectInfo, RegistrySkill, TargetName } from './types.js';
 
 const str = (v: Flags[string]) => (typeof v === 'string' ? v : undefined);
 const requireRoot = () => findRoot() ?? die(`No ${MANIFEST} found here or in any parent folder. Run \`bee init\` first.`);
@@ -159,21 +160,104 @@ export function cmdList(flags: Flags): void {
   }
 }
 
+/** Rank registry skills against search terms. Every term must match somewhere. */
+export function searchRegistry(terms: string[], opts: { tag?: string; forType?: string } = {}): { skill: RegistrySkill; score: number }[] {
+  const t = terms.map(x => x.toLowerCase()).filter(Boolean);
+  const out: { skill: RegistrySkill; score: number }[] = [];
+  for (const skill of REGISTRY.skills) {
+    const tags = (skill.tags ?? []).map(x => x.toLowerCase());
+    const types = (skill.for ?? []).map(x => x.toLowerCase());
+    if (opts.tag && !tags.includes(opts.tag.toLowerCase())) continue;
+    if (opts.forType && !types.includes(opts.forType.toLowerCase())) continue;
+    const name = skill.name.toLowerCase();
+    const summary = skill.summary.toLowerCase();
+    let score = 0;
+    let all = true;
+    for (const term of t) {
+      let s = 0;
+      if (name === term) s += 20;
+      else if (name.startsWith(term)) s += 12;
+      else if (name.includes(term)) s += 8;
+      if (tags.includes(term)) s += 6;
+      else if (tags.some(x => x.includes(term))) s += 3;
+      if (types.includes(term)) s += 4;
+      if (summary.includes(term)) s += 2;
+      if (!s) { all = false; break; }
+      score += s;
+    }
+    if (all) out.push({ skill, score });
+  }
+  return out.sort((x, y) => y.score - x.score || x.skill.name.localeCompare(y.skill.name));
+}
+
 export function cmdSearch(pos: string[], flags: Flags): void {
-  const q = pos.join(' ').toLowerCase();
   const root = findRoot();
   const installed = new Set(root ? Object.keys(loadProject(root).lock.skills) : []);
-  const hits = REGISTRY.skills.filter(s =>
-    !q || [s.name, s.summary, ...(s.tags ?? []), ...(s.for ?? [])].join(' ').toLowerCase().includes(q));
-  if (flags.json) { console.log(JSON.stringify(hits.map(s => ({ ...s, installed: installed.has(s.name) })), null, 2)); return; }
-  if (!hits.length) { log(`No skills match "${q}". You can still add any skill by source: bee add github:owner/repo/path`); return; }
-  for (const s of hits) {
-    log(`  ${installed.has(s.name) ? green('✓') : ' '} ${bold(s.name)} ${dim('[' + (s.tags ?? []).join(', ') + ']')}\n      ${s.summary} ${dim(s.source)}`);
+  const hits = searchRegistry(pos, { tag: str(flags.tag), forType: str(flags.for) });
+  if (flags.json) {
+    console.log(JSON.stringify(hits.map(h => ({ ...h.skill, score: h.score, installed: installed.has(h.skill.name) })), null, 2));
+    return;
   }
+  const q = [pos.join(' '), flags.tag && `tag:${flags.tag}`, flags.for && `for:${flags.for}`].filter(Boolean).join(' ');
+  if (!hits.length) {
+    log(`No skills match "${q}".`);
+    const tags = [...new Set(REGISTRY.skills.flatMap(s => s.tags ?? []))].sort();
+    log(dim(`  Tags: ${tags.join(', ')}`));
+    log(dim('  Any git repo with a SKILL.md works too: bee add github:owner/repo/path'));
+    return;
+  }
+  log(dim(`${hits.length} skill${hits.length === 1 ? '' : 's'}${q ? ` for "${q}"` : ''}  ·  ✓ = installed in this project\n`));
+  for (const { skill: s } of hits) {
+    const origin = s.source.startsWith('bee:') ? 'bundled' : s.source.replace(/^github:/, '').split('/').slice(0, 2).join('/');
+    log(`  ${installed.has(s.name) ? green('✓') : ' '} ${bold(s.name)} ${dim('· ' + origin + ' · ' + (s.tags ?? []).join(', '))}`);
+    log(`      ${s.summary}`);
+  }
+  log(dim(`\n  Details: bee info <skill>    Add: bee add <skill>`));
+}
+
+export function cmdInfo(pos: string[], flags: Flags): void {
+  const name = pos[0] ?? die('Usage: bee info <skill>');
+  const s = regEntry(name);
+  if (!s) {
+    const near = searchRegistry([name]).slice(0, 3).map(h => h.skill.name);
+    return die(`No skill named "${name}" in the registry.${near.length ? ` Did you mean: ${near.join(', ')}?` : ''}`);
+  }
+  const root = findRoot();
+  const lockEntry = root ? loadProject(root).lock.skills[name] : undefined;
+  const bundledBy = REGISTRY.skills.filter(x => x.requires?.includes(name)).map(x => x.name);
+  let description: string | undefined;
+  if (s.source.startsWith('bee:')) description = frontmatter(path.join(LIB, 'skills', name))?.description;
+  if (flags.json) { console.log(JSON.stringify({ ...s, description, bundledBy, installed: lockEntry ?? null }, null, 2)); return; }
+  log(`${bold(s.name)}  ${dim(s.source)}`);
+  log(`  ${s.summary}`);
+  if (description) log(dim(`\n  When agents use it: ${description}`));
+  const rows: [string, string | undefined][] = [
+    ['Tags', s.tags?.join(', ')],
+    ['Recommended for', s.for?.join(', ')],
+    ['Bundles', s.requires?.join(', ')],
+    ['Bundled by', bundledBy.join(', ') || undefined],
+    ['Agents', s.agents?.join(', ')],
+    ['In this project', root ? (lockEntry ? `installed (${short(lockEntry.resolved)})` : 'not installed') : undefined],
+  ];
+  log('');
+  for (const [k, v] of rows) if (v) log(`  ${dim(k.padEnd(16))} ${v}`);
+  if (!lockEntry) log(`\n  Add it: ${cyan('bee add ' + s.name)}`);
 }
 
 /** Re-run the installer (standalone/source installs); dev checkouts update with git. */
-export function cmdUpgrade(): void {
+export async function cmdUpgrade(flags: Flags): Promise<void> {
+  const latest = await fetchLatestVersion(5000);
+  if (flags.check) {
+    if (!latest) return die(`No published release found for ${REPO} (none released yet, or GitHub is unreachable). See https://github.com/${REPO}/releases`);
+    log(compareVersions(latest, PKG.version) > 0
+      ? `Update available: ${PKG.version} → ${latest.replace(/^v/, '')}. Run ${cyan('bee upgrade')}`
+      : `${green('✓')} bee ${PKG.version} is the latest version.`);
+    return;
+  }
+  if (latest && compareVersions(latest, PKG.version) <= 0 && !flags.force) {
+    log(`${green('✓')} bee ${PKG.version} is already the latest version.`);
+    return;
+  }
   const home = path.join(os.homedir(), '.bee');
   const managed = LIB === home || LIB === path.join(home, 'src') || !!process.env.BEE_HOME;
   if (!managed) {
@@ -183,6 +267,7 @@ export function cmdUpgrade(): void {
   log(dim(`Running installer from ${INSTALL_URL} …`));
   const r = spawnSync('sh', ['-c', `curl -fsSL "${INSTALL_URL}" | bash`], { stdio: 'inherit' });
   if (r.status !== 0) die('Upgrade failed (see output above).');
+  log(`\nIn each project, run ${cyan('bee update')} to move it to the new bundled skills, then commit ${LOCKFILE}.`);
 }
 
 export const HELP = `${bold('🐝 bee')} ${dim('v' + PKG.version)}: skills for agent-driven projects
@@ -196,7 +281,11 @@ export const HELP = `${bold('🐝 bee')} ${dim('v' + PKG.version)}: skills for a
   ${cyan('bee remove')} <skill>      Remove a skill (and the bundled skills only it needed)
   ${cyan('bee update')} [skill]      Pull newer versions and re-pin them
   ${cyan('bee list')}               Show installed skills and whether they match the lock
-  ${cyan('bee search')} [query]      Browse the registry (--json for agents)
-  ${cyan('bee upgrade')}            Update bee itself to the latest release
+  ${cyan('bee search')} [words…]    Find skills, best match first (all words must match)
+      --tag <tag>           only skills with this tag (e.g. testing, docs, adr)
+      --for <type>          only skills recommended for a project type (web-app, api, …)
+      --json                machine-readable (used by the skill-advisor agent)
+  ${cyan('bee info')} <skill>        What a skill does, what it bundles, whether it's installed
+  ${cyan('bee upgrade')}            Update bee to the latest release (--check: just tell me)
 
   Files: .bees (commit) · .bees.lock (commit) · .claude/skills/* (gitignored, restored by bee install)`;

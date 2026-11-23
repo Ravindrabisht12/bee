@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Install the skill-to-kill library by SYMLINKING skills/agents into an agent's skill folder.
+# Install the bee library by SYMLINKING skills/agents into an agent's skill folder.
 # Symlinks mean edits in this repo (including ones made by skill-forge) go live immediately.
 #
 #   ./scripts/link-skills.sh                     # Claude Code, user-wide  (~/.claude/skills, ~/.claude/agents)
 #   ./scripts/link-skills.sh --project ~/my-app  # Claude Code, one project (<dir>/.claude/skills, agents)
-#   ./scripts/link-skills.sh --hermes            # Hermes Agent            (~/.hermes/skills/skill-to-kill)
+#   ./scripts/link-skills.sh --hermes            # Hermes Agent            (~/.hermes/skills/bee)
 #   ./scripts/link-skills.sh --dir <path>        # any agent that reads SKILL.md folders
 #   ./scripts/link-skills.sh --copy ...          # copy instead of symlink
 #   ./scripts/link-skills.sh --uninstall ...     # remove links created by this script
@@ -16,7 +16,7 @@ MODE=link; ACTION=install; SKILLS_DIR=""; AGENTS_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project) SKILLS_DIR="$2/.claude/skills"; AGENTS_DIR="$2/.claude/agents"; shift 2;;
-    --hermes)  SKILLS_DIR="$HOME/.hermes/skills/skill-to-kill"; AGENTS_DIR=""; shift;;
+    --hermes)  SKILLS_DIR="$HOME/.hermes/skills/bee"; AGENTS_DIR=""; shift;;
     --dir)     SKILLS_DIR="$2"; AGENTS_DIR=""; shift 2;;
     --copy)    MODE=copy; shift;;
     --uninstall) ACTION=uninstall; shift;;

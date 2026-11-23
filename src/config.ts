@@ -23,7 +23,7 @@ export const PKG = readJSON<{ version: string }>(path.join(LIB, 'package.json'))
 export const REGISTRY = readJSON<Registry>(path.join(LIB, 'registry.json'));
 
 /** GitHub repo that hosts bee releases and the installer. */
-export const REPO = process.env.BEE_REPO || 'YOUR_GITHUB_USER/skill-to-kill';
+export const REPO = process.env.BEE_REPO || 'Ravindrabisht12/bee';
 export const INSTALL_URL = `https://raw.githubusercontent.com/${REPO}/main/install.sh`;
 
 export const MANIFEST = '.bees';

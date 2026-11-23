@@ -13,8 +13,10 @@ You decide which skills this project should run on. The skill set is recorded in
    package/dependency files, and the top-level folders. Note the project type
    (web app, API, mobile, e-commerce, AI agent…), the stack, and whether it's new or
    established.
-2. **Read the catalog:** `bee search --json` (all skills, with tags and sources) and
-   `bee list` (what's already installed).
+2. **Read the catalog:** `bee search --json` (all skills, with tags and sources),
+   narrowed with words or filters (`bee search testing --json`, `--tag docs`,
+   `--for api`). Use `bee info <skill> --json` to see what a skill bundles, and
+   `bee list` for what's already installed.
 3. **Match.** For each candidate skill, ask whether this project will repeatedly do the
    job the skill covers. Recommend only skills that pass. Fewer, relevant skills
    trigger more reliably than many overlapping ones.

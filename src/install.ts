@@ -4,6 +4,7 @@ import { GITIGNORE_HEADER, HOOK_CMD, LEGACY_LOCKFILE, LEGACY_MANIFEST, LOCKFILE,
 import { copyDir, hashDir, readJSON, sortKeys, writeJSON } from './fsutil.js';
 import { fetchSkill, skillAgents } from './sources.js';
 import { bold, die, dim, green, isQuiet, log, red, warn, yellow, short } from './ui.js';
+import { compareVersions } from './update.js';
 import type { InstallOptions, InstallResult, Lock, LockEntry, Manifest, Target } from './types.js';
 
 export function findRoot(start = process.cwd()): string | null {
@@ -79,7 +80,7 @@ export function install(root: string, manifest: Manifest, lock: Lock, opts: Inst
     if (prev && prev.integrity !== integrity && !refresh) {
       if (fetched.kind === 'file') warn(`${name}: local source changed since .bees.lock; accepting new content.`);
       else if (!force) {
-        problems.push(`${name}: content differs from .bees.lock (${short(prev.resolved)} → ${short(fetched.resolved)}). Run \`bee update ${name}\` to accept it.`);
+        problems.push(lockMismatch(name, prev.resolved, fetched.resolved));
         done.set(name, { ...prev });
         continue;
       }
@@ -138,6 +139,18 @@ export function install(root: string, manifest: Manifest, lock: Lock, opts: Inst
   if (!manifest.vendor) writeGitignores(root, targets, [...keep], [...keepAgents]);
   syncClaudeMd(root, [...keep], false);
   return { results, problems, lock: newLock };
+}
+
+/** Explain a lock/content mismatch, with the right fix for bundled (bee@x) vs. git sources. */
+function lockMismatch(name: string, locked: string, current: string): string {
+  const lv = locked.match(/^bee@(.+)$/)?.[1];
+  const cv = current.match(/^bee@(.+)$/)?.[1];
+  if (lv && cv && lv !== cv) {
+    return compareVersions(lv, cv) > 0
+      ? `${name}: ${LOCKFILE} was made with bee ${lv}, but you have ${cv}. Run \`bee upgrade\`.`
+      : `${name}: ${LOCKFILE} was made with bee ${lv}; you have the newer ${cv}. Run \`bee update\` to move this project to the new skills, then commit ${LOCKFILE}.`;
+  }
+  return `${name}: content differs from ${LOCKFILE} (${short(locked)} → ${short(current)}). Run \`bee update ${name}\` to accept it.`;
 }
 
 function writeGitignores(root: string, targets: Target[], skills: string[], agents: string[]): void {

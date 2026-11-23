@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bee installer
 #
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/skill-to-kill/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Ravindrabisht12/bee/main/install.sh | bash
 #
 # Installs a standalone bee binary (no Node, Python, or npm needed) into ~/.bee and puts it on PATH.
 # If no prebuilt binary exists for this platform, falls back to a source install when Node 18+ is present.
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 main() {
-  REPO="${BEE_REPO:-YOUR_GITHUB_USER/skill-to-kill}"
+  REPO="${BEE_REPO:-Ravindrabisht12/bee}"
   VERSION="${BEE_VERSION:-latest}"
   DIR="${BEE_INSTALL_DIR:-$HOME/.bee}"
   if [ "$VERSION" = latest ]; then
@@ -99,8 +99,8 @@ install_binary() {
   local src="$1" item
   mkdir -p "$DIR"
   # Replace the library and binary; keep the git cache (~/.bee/cache).
-  for item in bin skills agents registry.json package.json src; do rm -rf "${DIR:?}/$item"; done
-  for item in bin skills agents registry.json package.json; do mv "$src/$item" "$DIR/$item"; done
+  for item in bin skills agents registry.json package.json LICENSE src; do rm -rf "${DIR:?}/$item"; done
+  for item in bin skills agents registry.json package.json LICENSE; do mv "$src/$item" "$DIR/$item"; done
   chmod +x "$DIR/bin/bee"
   ln -sf bee "$DIR/bin/bees"
 }
@@ -114,7 +114,7 @@ install_source() {
   local item ref=()
   [ "$VERSION" = latest ] || ref=(--branch "$VERSION")
   mkdir -p "$DIR"
-  for item in bin skills agents registry.json package.json src; do rm -rf "${DIR:?}/$item"; done
+  for item in bin skills agents registry.json package.json LICENSE src; do rm -rf "${DIR:?}/$item"; done
   git clone --quiet --depth 1 ${ref[@]+"${ref[@]}"} "$GIT_URL" "$DIR/src"
   mkdir -p "$DIR/bin"
   printf '#!/bin/sh\nexec node "%s/src/dist/bee.mjs" "$@"\n' "$DIR" > "$DIR/bin/bee"

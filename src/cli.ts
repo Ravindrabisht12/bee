@@ -1,10 +1,11 @@
 // bee — declare the agent skills a project runs on (.bees), pin them (.bees.lock), install them anywhere.
 import { PKG } from './config.js';
-import { HELP, cmdInit, cmdInstall, cmdList, cmdRemove, cmdSearch, cmdUpdate, cmdUpgrade } from './commands.js';
+import { HELP, cmdInit, cmdInstall, cmdList, cmdRemove, cmdInfo, cmdSearch, cmdUpdate, cmdUpgrade } from './commands.js';
+import { notifyIfOutdated } from './update.js';
 import { BeeError, die, red, setQuiet } from './ui.js';
 import type { Flags } from './types.js';
 
-const VALUED = new Set(['type', 'stage', 'workflow', 'target', 'name', 'description']);
+const VALUED = new Set(['type', 'stage', 'workflow', 'target', 'name', 'description', 'tag', 'for']);
 
 export function parseArgs(argv: string[]): { flags: Flags; pos: string[] } {
   const flags: Flags = {};
@@ -26,6 +27,11 @@ export function parseArgs(argv: string[]): { flags: Flags; pos: string[] } {
 
 async function main(): Promise<void> {
   const { flags, pos } = parseArgs(process.argv.slice(2));
+  await run(flags, pos);
+  if (pos[0] !== 'upgrade' && !flags.version) await notifyIfOutdated();
+}
+
+async function run(flags: Flags, pos: string[]): Promise<void> {
   setQuiet(!!flags.quiet);
   const cmd = pos.shift();
   if (flags.version) { console.log(PKG.version); return; }
@@ -39,8 +45,9 @@ async function main(): Promise<void> {
     case 'remove': case 'rm': return cmdRemove(pos);
     case 'update': case 'up': return cmdUpdate(pos, flags);
     case 'list': case 'ls': return cmdList(flags);
-    case 'search': return cmdSearch(pos, flags);
-    case 'upgrade': case 'self-update': return cmdUpgrade();
+    case 'search': case 's': return cmdSearch(pos, flags);
+    case 'info': case 'show': return cmdInfo(pos, flags);
+    case 'upgrade': case 'self-update': return cmdUpgrade(flags);
     default: die(`Unknown command "${cmd}". Run \`bee help\`.`);
   }
 }

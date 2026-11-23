@@ -181,3 +181,45 @@ test('init detects a Java (Maven) project', () => {
   assert.match(r.out, /Detected: Java\/Kotlin \(Maven\)/);
   assert.equal(read(path.join(p, '.bees')).project.type, 'api');
 });
+
+test('search ranks by relevance, requires every word, and supports --tag / --for', () => {
+  const p = project('search2');
+  const top = JSON.parse(bee(p, 'search', 'test', '--json').out)[0];
+  assert.equal(top.name, 'webapp-testing');
+  const both = JSON.parse(bee(p, 'search', 'decision', 'record', '--json').out);
+  assert.deepEqual(both.map(s => s.name), ['adr']);
+  const tagged = JSON.parse(bee(p, 'search', '--tag', 'ai', '--json').out).map(s => s.name).sort();
+  assert.deepEqual(tagged, ['claude-api', 'mcp-builder']);
+  const forApi = JSON.parse(bee(p, 'search', '--for', 'ai-agent', '--json').out).map(s => s.name).sort();
+  assert.deepEqual(forApi, ['claude-api', 'mcp-builder']);
+  assert.match(bee(p, 'search', 'zzzz').out, /No skills match "zzzz"[\s\S]*Tags:/);
+});
+
+test('info shows what a skill bundles and suggests near matches', () => {
+  const p = project('info');
+  const r = bee(p, 'info', 'spec');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Bundled by\s+product-builder, feature-change/);
+  assert.match(r.out, /When agents use it:/);
+  const miss = bee(p, 'info', 'specs');
+  assert.equal(miss.code, 1);
+  assert.match(miss.out, /Did you mean: spec/);
+});
+
+test('lock made by a different bee version explains whether to upgrade or update', () => {
+  const p = project('versions');
+  bee(p, 'init', '--yes', '--workflow', 'lean', '--no-hook');
+  const lockPath = path.join(p, '.bees.lock');
+  const setVersion = v => {
+    const l = read(lockPath);
+    l.skills.adr.resolved = `bee@${v}`;
+    l.skills.adr.integrity = 'sha256-other';
+    fs.writeFileSync(lockPath, JSON.stringify(l));
+  };
+  setVersion('99.0.0');
+  assert.match(bee(p, 'install').out, /made with bee 99\.0\.0, but you have .*Run `bee upgrade`/);
+  setVersion('0.0.1');
+  assert.match(bee(p, 'install').out, /made with bee 0\.0\.1; you have the newer .*Run `bee update`/);
+  assert.equal(bee(p, 'update').code, 0);
+  assert.equal(bee(p, 'install').code, 0);
+});

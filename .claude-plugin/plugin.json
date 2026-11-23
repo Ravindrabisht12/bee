@@ -1,7 +1,17 @@
 {
-  "name": "skill-to-kill",
+  "name": "bee",
   "version": "0.3.0",
   "description": "A reusable product-team skill library: research, competitor analysis, design, development, docs, and an interactive explainer, chained by an orchestrator.",
-  "author": { "name": "skill-to-kill" },
-  "keywords": ["skills", "product", "workflow", "agents", "explainer"]
+  "author": {
+    "name": "Ravindrabisht12",
+    "url": "https://github.com/Ravindrabisht12"
+  },
+  "keywords": [
+    "skills",
+    "product",
+    "workflow",
+    "agents",
+    "explainer"
+  ],
+  "license": "MIT"
 }
