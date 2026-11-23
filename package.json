@@ -1,11 +1,12 @@
 {
   "name": "bee-skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "bee: declare the agent skills a project runs on (harness.json), pin them (harness.lock), install them anywhere.",
+  "description": "bee: declare the agent skills a project runs on (.bees), pin them (.bees.lock), install them anywhere.",
   "type": "module",
   "bin": {
-    "bee": "dist/bee.mjs"
+    "bee": "dist/bee.mjs",
+    "bees": "dist/bee.mjs"
   },
   "files": [
     "dist",
@@ -17,7 +18,8 @@
     "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/bee.mjs --banner:js='#!/usr/bin/env node'",
     "typecheck": "tsc",
     "test": "npm run build && node --test test/*.test.mjs",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "release:package": "sh scripts/package-release.sh"
   },
   "engines": {
     "node": ">=18"
@@ -26,5 +28,9 @@
     "@types/node": "^22.20.5",
     "esbuild": "^0.24.2",
     "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_GITHUB_USER/skill-to-kill.git"
   }
 }

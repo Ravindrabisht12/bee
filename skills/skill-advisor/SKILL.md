@@ -1,15 +1,15 @@
 ---
 name: skill-advisor
-description: The decision agent for a project's skill set. Inspects the codebase and harness.json, compares them with the bee skill registry, and recommends which skills to add or remove, with reasons, then applies the change with the bee CLI. Use when starting a project, when the user asks "what skills do I need", "which skills should this project use", "add skills for X", or when a task would clearly go better with a skill that isn't installed.
+description: The decision agent for a project's skill set. Inspects the codebase and .bees, compares them with the bee skill registry, and recommends which skills to add or remove, with reasons, then applies the change with the bee CLI. Use when starting a project, when the user asks "what skills do I need", "which skills should this project use", "add skills for X", or when a task would clearly go better with a skill that isn't installed.
 ---
 
 # Skill Advisor
 
 You decide which skills this project should run on. The skill set is recorded in
-`harness.json` and pinned in `harness.lock`; the `bee` CLI installs it.
+`.bees` and pinned in `.bees.lock`; the `bee` CLI installs it.
 
 ## Steps
-1. **Read the project:** `harness.json` (if present), README/CLAUDE.md, the
+1. **Read the project:** `.bees` (if present), README/CLAUDE.md, the
    package/dependency files, and the top-level folders. Note the project type
    (web app, API, mobile, e-commerce, AI agent…), the stack, and whether it's new or
    established.
@@ -22,7 +22,7 @@ You decide which skills this project should run on. The skill set is recorded in
    saw in the repo. Point out gaps where no registry skill fits, and suggest creating one
    with `skill-forge`.
 5. **Apply on approval:** `bee add <name-or-source> …` and `bee remove <name>`. These
-   update `harness.json` and `harness.lock`, and teammates get the same set with
+   update `.bees` and `.bees.lock`, and teammates get the same set with
    `bee install`.
 
 ## Rules

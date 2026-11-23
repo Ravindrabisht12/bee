@@ -1,6 +1,6 @@
-// bee — declare the agent skills a project runs on (harness.json), pin them (harness.lock), install them anywhere.
+// bee — declare the agent skills a project runs on (.bees), pin them (.bees.lock), install them anywhere.
 import { PKG } from './config.js';
-import { HELP, cmdInit, cmdInstall, cmdList, cmdRemove, cmdSearch, cmdUpdate } from './commands.js';
+import { HELP, cmdInit, cmdInstall, cmdList, cmdRemove, cmdSearch, cmdUpdate, cmdUpgrade } from './commands.js';
 import { BeeError, die, red, setQuiet } from './ui.js';
 import type { Flags } from './types.js';
 
@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     case 'update': case 'up': return cmdUpdate(pos, flags);
     case 'list': case 'ls': return cmdList(flags);
     case 'search': return cmdSearch(pos, flags);
+    case 'upgrade': case 'self-update': return cmdUpgrade();
     default: die(`Unknown command "${cmd}". Run \`bee help\`.`);
   }
 }

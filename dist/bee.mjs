@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 // src/config.ts
+import fs2 from "node:fs";
 import os from "node:os";
 import path2 from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,18 +58,33 @@ function frontmatter(skillDir) {
 }
 
 // src/config.ts
-var LIB = path2.resolve(path2.dirname(fileURLToPath(import.meta.url)), "..");
+function findLib() {
+  const candidates = [process.env.BEE_HOME];
+  try {
+    candidates.push(path2.resolve(path2.dirname(fileURLToPath(import.meta.url)), ".."));
+  } catch {
+  }
+  candidates.push(path2.resolve(path2.dirname(process.execPath), ".."));
+  for (const c of candidates) if (c && fs2.existsSync(path2.join(c, "registry.json"))) return c;
+  console.error("bee: cannot find its skill library (registry.json). Reinstall bee, or set BEE_HOME.");
+  process.exit(1);
+}
+var LIB = findLib();
 var PKG = readJSON(path2.join(LIB, "package.json"));
 var REGISTRY = readJSON(path2.join(LIB, "registry.json"));
-var MANIFEST = "harness.json";
-var LOCKFILE = "harness.lock";
+var REPO = process.env.BEE_REPO || "YOUR_GITHUB_USER/skill-to-kill";
+var INSTALL_URL = `https://raw.githubusercontent.com/${REPO}/main/install.sh`;
+var MANIFEST = ".bees";
+var LOCKFILE = ".bees.lock";
+var LEGACY_MANIFEST = "harness.json";
+var LEGACY_LOCKFILE = "harness.lock";
 var CACHE = process.env.BEE_CACHE || path2.join(os.homedir(), ".bee", "cache");
 var TARGETS = {
   claude: { skills: ".claude/skills", agents: ".claude/agents", label: "Claude Code (.claude/skills)" },
   agents: { skills: ".agents/skills", agents: null, label: "Other agents (.agents/skills)" }
 };
-var GITIGNORE_HEADER = "# Managed by bee: restored by `bee install` from harness.json. Do not edit.";
-var HOOK_CMD = 'if command -v bee >/dev/null 2>&1; then bee install --quiet; else echo "This project declares agent skills in harness.json, but the bee CLI is not installed, so they are missing."; fi';
+var GITIGNORE_HEADER = "# Managed by bee: restored by `bee install` from .bees. Do not edit.";
+var HOOK_CMD = 'if command -v bee >/dev/null 2>&1; then bee install --quiet; else echo "This project declares agent skills in .bees, but the bee CLI is not installed, so they are missing."; fi';
 var PROJECT_TYPES = [
   ["web-app", "Web app (SaaS, dashboard, internal tool)"],
   ["mobile-app", "Mobile app"],
@@ -87,15 +103,17 @@ var WORKFLOWS = [
 var regEntry = (name) => REGISTRY.skills.find((s) => s.name === name);
 
 // src/commands.ts
-import fs5 from "node:fs";
+import fs6 from "node:fs";
+import os2 from "node:os";
 import path6 from "node:path";
+import { spawnSync as spawnSync3 } from "node:child_process";
 
 // src/install.ts
-import fs3 from "node:fs";
+import fs4 from "node:fs";
 import path4 from "node:path";
 
 // src/sources.ts
-import fs2 from "node:fs";
+import fs3 from "node:fs";
 import path3 from "node:path";
 import crypto2 from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -177,8 +195,8 @@ function tryRev(dir, rev) {
 }
 function gitCheckout(url, ref, lockedCommit, refresh) {
   const dir = path3.join(CACHE, crypto2.createHash("sha1").update(url).digest("hex").slice(0, 16));
-  if (!fs2.existsSync(path3.join(dir, ".git"))) {
-    fs2.mkdirSync(CACHE, { recursive: true });
+  if (!fs3.existsSync(path3.join(dir, ".git"))) {
+    fs3.mkdirSync(CACHE, { recursive: true });
     git(["clone", "--quiet", "--filter=blob:none", "--no-checkout", url, dir]);
   } else if (refresh || !lockedCommit || !tryRev(dir, lockedCommit)) {
     git(["-C", dir, "fetch", "--quiet", "--tags", "--force", "origin"]);
@@ -199,28 +217,38 @@ function fetchSkill(spec, root, lockedCommit, refresh) {
     const co = gitCheckout(src.url, src.ref, lockedCommit, refresh);
     out = { dir: src.sub ? path3.join(co.dir, src.sub) : co.dir, resolved: co.commit, commit: co.commit, kind: "git" };
   }
-  if (!fs2.existsSync(path3.join(out.dir, "SKILL.md"))) die(`No SKILL.md found for ${spec} (looked in ${out.dir})`);
+  if (!fs3.existsSync(path3.join(out.dir, "SKILL.md"))) die(`No SKILL.md found for ${spec} (looked in ${out.dir})`);
   return out;
 }
 function skillAgents(name, spec, dir) {
   const e = regEntry(name);
   const fromRegistry = e && e.source === spec ? (e.agents ?? []).map((a) => ({ name: a, file: path3.join(LIB, "agents", `${a}.md`) })) : [];
-  const own = fs2.existsSync(path3.join(dir, "agents")) ? fs2.readdirSync(path3.join(dir, "agents")).filter((f) => f.endsWith(".md")).map((f) => ({ name: f.slice(0, -3), file: path3.join(dir, "agents", f) })) : [];
+  const own = fs3.existsSync(path3.join(dir, "agents")) ? fs3.readdirSync(path3.join(dir, "agents")).filter((f) => f.endsWith(".md")).map((f) => ({ name: f.slice(0, -3), file: path3.join(dir, "agents", f) })) : [];
   return [...fromRegistry, ...own];
 }
 
 // src/install.ts
 function findRoot(start = process.cwd()) {
   for (let d = path4.resolve(start); ; d = path4.dirname(d)) {
-    if (fs3.existsSync(path4.join(d, MANIFEST))) return d;
+    if (fs4.existsSync(path4.join(d, MANIFEST))) return d;
+    if (fs4.existsSync(path4.join(d, LEGACY_MANIFEST))) {
+      migrateLegacy(d);
+      return d;
+    }
     if (path4.dirname(d) === d) return null;
   }
+}
+function migrateLegacy(root) {
+  if (fs4.existsSync(path4.join(root, MANIFEST))) return;
+  fs4.renameSync(path4.join(root, LEGACY_MANIFEST), path4.join(root, MANIFEST));
+  if (fs4.existsSync(path4.join(root, LEGACY_LOCKFILE))) fs4.renameSync(path4.join(root, LEGACY_LOCKFILE), path4.join(root, LOCKFILE));
+  warn(`Renamed ${LEGACY_MANIFEST} \u2192 ${MANIFEST} and ${LEGACY_LOCKFILE} \u2192 ${LOCKFILE}. Commit the rename.`);
 }
 function loadProject(root) {
   const manifest = readJSON(path4.join(root, MANIFEST));
   manifest.skills ||= {};
   const lockPath = path4.join(root, LOCKFILE);
-  const lock = fs3.existsSync(lockPath) ? readJSON(lockPath) : { skills: {} };
+  const lock = fs4.existsSync(lockPath) ? readJSON(lockPath) : { skills: {} };
   lock.skills ||= {};
   return { manifest, lock };
 }
@@ -259,21 +287,21 @@ function install(root, manifest, lock, opts = {}) {
     }
     const integrity = hashDir(fetched.dir);
     if (prev && prev.integrity !== integrity && !refresh) {
-      if (fetched.kind === "file") warn(`${name}: local source changed since harness.lock; accepting new content.`);
+      if (fetched.kind === "file") warn(`${name}: local source changed since .bees.lock; accepting new content.`);
       else if (!force) {
-        problems.push(`${name}: content differs from harness.lock (${short(prev.resolved)} \u2192 ${short(fetched.resolved)}). Run \`bee update ${name}\` to accept it.`);
+        problems.push(`${name}: content differs from .bees.lock (${short(prev.resolved)} \u2192 ${short(fetched.resolved)}). Run \`bee update ${name}\` to accept it.`);
         done.set(name, { ...prev });
         continue;
       }
     }
     if (frozen && (!prev || prev.integrity !== integrity)) {
-      problems.push(`${name}: ${prev ? "changed" : "missing"} in harness.lock (--frozen). Run \`bee install\` without --frozen and commit the lock.`);
+      problems.push(`${name}: ${prev ? "changed" : "missing"} in .bees.lock (--frozen). Run \`bee install\` without --frozen and commit the lock.`);
       continue;
     }
     let blocked = null;
     for (const t of targets) {
       const dest = path4.join(root, t.skills, name);
-      if (!fs3.existsSync(dest) || force) continue;
+      if (!fs4.existsSync(dest) || force) continue;
       if (!owned) {
         blocked = `${path4.relative(root, dest)} exists and is not managed by bee (use --force to replace)`;
         break;
@@ -293,8 +321,8 @@ function install(root, manifest, lock, opts = {}) {
     for (const t of targets) {
       copyDir(fetched.dir, path4.join(root, t.skills, name));
       if (t.agents) for (const a of agents) {
-        fs3.mkdirSync(path4.join(root, t.agents), { recursive: true });
-        fs3.copyFileSync(a.file, path4.join(root, t.agents, `${a.name}.md`));
+        fs4.mkdirSync(path4.join(root, t.agents), { recursive: true });
+        fs4.copyFileSync(a.file, path4.join(root, t.agents, `${a.name}.md`));
       }
     }
     const entry = { source: spec, resolved: fetched.resolved, integrity };
@@ -307,9 +335,9 @@ function install(root, manifest, lock, opts = {}) {
   const keep = new Set(done.keys());
   const keepAgents = new Set([...done.values()].flatMap((e) => e.agents ?? []));
   for (const [name, e] of Object.entries(lock.skills)) {
-    if (!keep.has(name)) for (const t of targets) fs3.rmSync(path4.join(root, t.skills, name), { recursive: true, force: true });
+    if (!keep.has(name)) for (const t of targets) fs4.rmSync(path4.join(root, t.skills, name), { recursive: true, force: true });
     for (const a of e.agents ?? []) if (!keepAgents.has(a)) {
-      for (const t of targets) if (t.agents) fs3.rmSync(path4.join(root, t.agents, `${a}.md`), { force: true });
+      for (const t of targets) if (t.agents) fs4.rmSync(path4.join(root, t.agents, `${a}.md`), { force: true });
     }
   }
   const newLock = { lockfileVersion: 1, generatedBy: `bee@${PKG.version}`, skills: sortKeys(Object.fromEntries(done)) };
@@ -321,14 +349,14 @@ function install(root, manifest, lock, opts = {}) {
 function writeGitignores(root, targets, skills, agents) {
   const put = (dir, entries) => {
     const p = path4.join(root, dir, ".gitignore");
-    const existing = fs3.existsSync(p) ? fs3.readFileSync(p, "utf8") : null;
+    const existing = fs4.existsSync(p) ? fs4.readFileSync(p, "utf8") : null;
     if (existing && !existing.startsWith(GITIGNORE_HEADER)) return;
     if (!entries.length) {
-      if (existing) fs3.rmSync(p);
+      if (existing) fs4.rmSync(p);
       return;
     }
-    fs3.mkdirSync(path4.dirname(p), { recursive: true });
-    fs3.writeFileSync(p, [GITIGNORE_HEADER, ...entries.sort()].join("\n") + "\n");
+    fs4.mkdirSync(path4.dirname(p), { recursive: true });
+    fs4.writeFileSync(p, [GITIGNORE_HEADER, ...entries.sort()].join("\n") + "\n");
   };
   for (const t of targets) {
     put(t.skills, skills.map((s) => `/${s}/`));
@@ -337,7 +365,7 @@ function writeGitignores(root, targets, skills, agents) {
 }
 function syncClaudeMd(root, skills, create) {
   const p = path4.join(root, "CLAUDE.md");
-  const text = fs3.existsSync(p) ? fs3.readFileSync(p, "utf8") : "";
+  const text = fs4.existsSync(p) ? fs4.readFileSync(p, "utf8") : "";
   const re = /<!-- bee:start -->[\s\S]*?<!-- bee:end -->/;
   if (!re.test(text) && !create) return;
   const has = (n) => skills.includes(n);
@@ -351,19 +379,19 @@ function syncClaudeMd(root, skills, create) {
     "<!-- bee:start -->",
     "## Agent skills (managed by bee)",
     "",
-    "Skills are declared in `harness.json` and pinned in `harness.lock`. After cloning, run `bee install`. To add more, run `bee add <skill>` (see `bee search`).",
+    "Skills are declared in `.bees` and pinned in `.bees.lock`. After cloning, run `bee install`. To add more, run `bee add <skill>` (see `bee search`).",
     "",
     `Installed: ${[...skills].sort().map((s) => "`" + s + "`").join(", ")}`,
     ...rules.length ? ["", "### Working agreement", ...rules] : [],
     "<!-- bee:end -->"
   ].join("\n");
   const out = re.test(text) ? text.replace(re, block) : (text ? text.replace(/\s*$/, "\n\n") : "") + block + "\n";
-  fs3.writeFileSync(p, out);
+  fs4.writeFileSync(p, out);
 }
 function writeHook(root) {
   const p = path4.join(root, ".claude", "settings.json");
   let s = {};
-  if (fs3.existsSync(p)) {
+  if (fs4.existsSync(p)) {
     try {
       s = readJSON(p);
     } catch {
@@ -434,11 +462,11 @@ function prompter(nonInteractive) {
 }
 
 // src/recommend.ts
-import fs4 from "node:fs";
+import fs5 from "node:fs";
 import path5 from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
 function detectProject(root) {
-  const has = (f) => fs4.existsSync(path5.join(root, f));
+  const has = (f) => fs5.existsSync(path5.join(root, f));
   const markers = [
     "package.json",
     "pyproject.toml",
@@ -449,6 +477,7 @@ function detectProject(root) {
     "Gemfile",
     "pom.xml",
     "build.gradle",
+    "build.gradle.kts",
     "Package.swift",
     "pubspec.yaml",
     "src",
@@ -476,9 +505,13 @@ function detectProject(root) {
     } catch {
     }
   }
-  const py = ["pyproject.toml", "requirements.txt"].filter(has).map((f) => fs4.readFileSync(path5.join(root, f), "utf8")).join("\n").toLowerCase();
+  const py = ["pyproject.toml", "requirements.txt"].filter(has).map((f) => fs5.readFileSync(path5.join(root, f), "utf8")).join("\n").toLowerCase();
   if (/\b(anthropic|mcp|langchain|openai)\b/.test(py)) setType("ai-agent", "Python LLM SDK");
   if (/\b(fastapi|django|flask)\b/.test(py)) setType("api", "Python web framework");
+  const gradle = ["build.gradle", "build.gradle.kts"].filter(has).map((f) => fs5.readFileSync(path5.join(root, f), "utf8")).join("\n");
+  if (/com\.android\.application|com\.android\.library/.test(gradle)) setType("mobile-app", "Android (Gradle)");
+  if (has("pom.xml") || gradle) setType("api", has("pom.xml") ? "Java/Kotlin (Maven)" : "Java/Kotlin (Gradle)");
+  if (has("go.mod")) setType("api", "Go module");
   if (has("layout/theme.liquid")) setType("ecommerce", "Shopify theme");
   if (has("pubspec.yaml") || has("Package.swift")) setType("mobile-app", "native mobile project");
   return { existing: markers.some(has), type, hints };
@@ -538,7 +571,7 @@ var str = (v) => typeof v === "string" ? v : void 0;
 var requireRoot = () => findRoot() ?? die(`No ${MANIFEST} found here or in any parent folder. Run \`bee init\` first.`);
 async function cmdInit(flags) {
   const root = process.cwd();
-  if (fs5.existsSync(path6.join(root, MANIFEST)) && !flags.force) {
+  if ((fs6.existsSync(path6.join(root, MANIFEST)) || fs6.existsSync(path6.join(root, LEGACY_MANIFEST))) && !flags.force) {
     die(`${MANIFEST} already exists. Use \`bee add\` / \`bee remove\`, or \`bee init --force\` to start over.`);
   }
   const det = detectProject(root);
@@ -602,7 +635,7 @@ async function cmdInit(flags) {
     log(`
 ${green("\u2713")} wrote ${MANIFEST}`);
     syncClaudeMd(root, [], targets.includes("claude"));
-    const lock = fs5.existsSync(path6.join(root, LOCKFILE)) ? loadProject(root).lock : { skills: {} };
+    const lock = fs6.existsSync(path6.join(root, LOCKFILE)) ? loadProject(root).lock : { skills: {} };
     report(install(root, manifest, lock));
     if (hook && writeHook(root)) log(`${green("\u2713")} added SessionStart hook to .claude/settings.json`);
     log(`
@@ -665,7 +698,7 @@ function cmdList(flags) {
   const t = targetsOf(manifest)[0];
   const rows = Object.entries(lock.skills).map(([name, e]) => {
     const dir = path6.join(root, t.skills, name);
-    const status = !fs5.existsSync(dir) ? "missing" : hashDir(dir) === e.integrity ? "ok" : "modified";
+    const status = !fs6.existsSync(dir) ? "missing" : hashDir(dir) === e.integrity ? "ok" : "modified";
     return { name, source: e.source, resolved: e.resolved, status, requiredBy: e.requiredBy ?? null, declared: name in manifest.skills };
   });
   for (const [n, spec] of Object.entries(manifest.skills)) {
@@ -701,20 +734,32 @@ function cmdSearch(pos, flags) {
       ${s.summary} ${dim(s.source)}`);
   }
 }
+function cmdUpgrade() {
+  const home = path6.join(os2.homedir(), ".bee");
+  const managed = LIB === home || LIB === path6.join(home, "src") || !!process.env.BEE_HOME;
+  if (!managed) {
+    log(`bee is running from ${LIB}. Update it there: ${cyan("git pull && npm run build")}`);
+    return;
+  }
+  log(dim(`Running installer from ${INSTALL_URL} \u2026`));
+  const r = spawnSync3("sh", ["-c", `curl -fsSL "${INSTALL_URL}" | bash`], { stdio: "inherit" });
+  if (r.status !== 0) die("Upgrade failed (see output above).");
+}
 var HELP = `${bold("\u{1F41D} bee")} ${dim("v" + PKG.version)}: skills for agent-driven projects
 
-  ${cyan("bee init")}               Interview \u2192 pick skills \u2192 write harness.json \u2192 install
+  ${cyan("bee init")}               Interview \u2192 pick skills \u2192 write .bees \u2192 install
       --ai                  let Claude (claude CLI) choose the skills
       --yes                 accept defaults (non-interactive); also --type --stage --workflow --target --name
-  ${cyan("bee install")}            Install everything in harness.json (exactly as pinned in harness.lock)
-      --frozen              fail instead of changing harness.lock (CI)
+  ${cyan("bee install")}            Install everything in .bees (exactly as pinned in .bees.lock)
+      --frozen              fail instead of changing .bees.lock (CI)
   ${cyan("bee add")} <skill|source>  Add skills: registry name, github:owner/repo/path[#ref], git+<url>::path#ref, ./local
   ${cyan("bee remove")} <skill>      Remove a skill (and the bundled skills only it needed)
   ${cyan("bee update")} [skill]      Pull newer versions and re-pin them
   ${cyan("bee list")}               Show installed skills and whether they match the lock
   ${cyan("bee search")} [query]      Browse the registry (--json for agents)
+  ${cyan("bee upgrade")}            Update bee itself to the latest release
 
-  Files: harness.json (commit) \xB7 harness.lock (commit) \xB7 .claude/skills/* (gitignored, restored by bee install)`;
+  Files: .bees (commit) \xB7 .bees.lock (commit) \xB7 .claude/skills/* (gitignored, restored by bee install)`;
 
 // src/cli.ts
 var VALUED = /* @__PURE__ */ new Set(["type", "stage", "workflow", "target", "name", "description"]);
@@ -767,6 +812,9 @@ async function main() {
       return cmdList(flags);
     case "search":
       return cmdSearch(pos, flags);
+    case "upgrade":
+    case "self-update":
+      return cmdUpgrade();
     default:
       die(`Unknown command "${cmd}". Run \`bee help\`.`);
   }

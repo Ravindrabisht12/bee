@@ -1,0 +1,38 @@
+name: Release
+
+# Push a tag like v0.3.0 (matching package.json "version") to publish binaries
+# that install.sh downloads.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.38
+      - run: npm ci
+      - run: npm run check
+      - name: Tag matches package.json version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Build standalone binaries
+        run: sh scripts/package-release.sh
+      - name: Smoke-test the linux binary through install.sh
+        run: |
+          BEE_DOWNLOAD_BASE="file://$PWD/release" BEE_INSTALL_DIR="$RUNNER_TEMP/bee" BEE_NO_MODIFY_PATH=1 bash install.sh
+          mkdir "$RUNNER_TEMP/app" && cd "$RUNNER_TEMP/app"
+          "$RUNNER_TEMP/bee/bin/bee" init --yes --workflow lean --no-hook
+          "$RUNNER_TEMP/bee/bin/bee" list
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --generate-notes

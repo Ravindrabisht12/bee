@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run check
+      - name: dist/bee.mjs is up to date
+        run: |
+          git diff --exit-code dist/ || {
+            echo "::error::dist/bee.mjs is out of date. Run 'npm run build' and commit the result."
+            exit 1
+          }
+      - name: installer passes shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck --severity=warning install.sh scripts/*.sh

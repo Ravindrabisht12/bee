@@ -1,6 +1,6 @@
 {
   "name": "skill-to-kill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A reusable product-team skill library: research, competitor analysis, design, development, docs, and an interactive explainer, chained by an orchestrator.",
   "author": { "name": "skill-to-kill" },
   "keywords": ["skills", "product", "workflow", "agents", "explainer"]

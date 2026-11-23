@@ -16,7 +16,7 @@ export interface Detected {
 export function detectProject(root: string): Detected {
   const has = (f: string) => fs.existsSync(path.join(root, f));
   const markers = ['package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'composer.json',
-    'Gemfile', 'pom.xml', 'build.gradle', 'Package.swift', 'pubspec.yaml', 'src', 'app', 'layout/theme.liquid'];
+    'Gemfile', 'pom.xml', 'build.gradle', 'build.gradle.kts', 'Package.swift', 'pubspec.yaml', 'src', 'app', 'layout/theme.liquid'];
   const hints: string[] = [];
   let type: string | null = null;
   const setType = (t: string, why: string) => { hints.push(why); type ??= t; };
@@ -39,6 +39,10 @@ export function detectProject(root: string): Detected {
     .map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n').toLowerCase();
   if (/\b(anthropic|mcp|langchain|openai)\b/.test(py)) setType('ai-agent', 'Python LLM SDK');
   if (/\b(fastapi|django|flask)\b/.test(py)) setType('api', 'Python web framework');
+  const gradle = ['build.gradle', 'build.gradle.kts'].filter(has).map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
+  if (/com\.android\.application|com\.android\.library/.test(gradle)) setType('mobile-app', 'Android (Gradle)');
+  if (has('pom.xml') || gradle) setType('api', has('pom.xml') ? 'Java/Kotlin (Maven)' : 'Java/Kotlin (Gradle)');
+  if (has('go.mod')) setType('api', 'Go module');
   if (has('layout/theme.liquid')) setType('ecommerce', 'Shopify theme');
   if (has('pubspec.yaml') || has('Package.swift')) setType('mobile-app', 'native mobile project');
   return { existing: markers.some(has), type, hints };

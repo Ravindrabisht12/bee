@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { LOCKFILE, MANIFEST, PKG, PROJECT_TYPES, REGISTRY, TARGETS, WORKFLOWS, regEntry } from './config.js';
+import { spawnSync } from 'node:child_process';
+import { INSTALL_URL, LEGACY_MANIFEST, LIB, LOCKFILE, MANIFEST, PKG, PROJECT_TYPES, REGISTRY, TARGETS, WORKFLOWS, regEntry } from './config.js';
 import { hashDir, sortKeys, writeJSON } from './fsutil.js';
 import { findRoot, install, loadProject, report, syncClaudeMd, targetsOf, writeHook } from './install.js';
 import { prompter } from './prompts.js';
@@ -14,7 +16,7 @@ const requireRoot = () => findRoot() ?? die(`No ${MANIFEST} found here or in any
 
 export async function cmdInit(flags: Flags): Promise<void> {
   const root = process.cwd();
-  if (fs.existsSync(path.join(root, MANIFEST)) && !flags.force) {
+  if ((fs.existsSync(path.join(root, MANIFEST)) || fs.existsSync(path.join(root, LEGACY_MANIFEST))) && !flags.force) {
     die(`${MANIFEST} already exists. Use \`bee add\` / \`bee remove\`, or \`bee init --force\` to start over.`);
   }
   const det = detectProject(root);
@@ -170,17 +172,31 @@ export function cmdSearch(pos: string[], flags: Flags): void {
   }
 }
 
+/** Re-run the installer (standalone/source installs); dev checkouts update with git. */
+export function cmdUpgrade(): void {
+  const home = path.join(os.homedir(), '.bee');
+  const managed = LIB === home || LIB === path.join(home, 'src') || !!process.env.BEE_HOME;
+  if (!managed) {
+    log(`bee is running from ${LIB}. Update it there: ${cyan('git pull && npm run build')}`);
+    return;
+  }
+  log(dim(`Running installer from ${INSTALL_URL} …`));
+  const r = spawnSync('sh', ['-c', `curl -fsSL "${INSTALL_URL}" | bash`], { stdio: 'inherit' });
+  if (r.status !== 0) die('Upgrade failed (see output above).');
+}
+
 export const HELP = `${bold('🐝 bee')} ${dim('v' + PKG.version)}: skills for agent-driven projects
 
-  ${cyan('bee init')}               Interview → pick skills → write harness.json → install
+  ${cyan('bee init')}               Interview → pick skills → write .bees → install
       --ai                  let Claude (claude CLI) choose the skills
       --yes                 accept defaults (non-interactive); also --type --stage --workflow --target --name
-  ${cyan('bee install')}            Install everything in harness.json (exactly as pinned in harness.lock)
-      --frozen              fail instead of changing harness.lock (CI)
+  ${cyan('bee install')}            Install everything in .bees (exactly as pinned in .bees.lock)
+      --frozen              fail instead of changing .bees.lock (CI)
   ${cyan('bee add')} <skill|source>  Add skills: registry name, github:owner/repo/path[#ref], git+<url>::path#ref, ./local
   ${cyan('bee remove')} <skill>      Remove a skill (and the bundled skills only it needed)
   ${cyan('bee update')} [skill]      Pull newer versions and re-pin them
   ${cyan('bee list')}               Show installed skills and whether they match the lock
   ${cyan('bee search')} [query]      Browse the registry (--json for agents)
+  ${cyan('bee upgrade')}            Update bee itself to the latest release
 
-  Files: harness.json (commit) · harness.lock (commit) · .claude/skills/* (gitignored, restored by bee install)`;
+  Files: .bees (commit) · .bees.lock (commit) · .claude/skills/* (gitignored, restored by bee install)`;

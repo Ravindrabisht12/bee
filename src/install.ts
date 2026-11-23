@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { GITIGNORE_HEADER, HOOK_CMD, LOCKFILE, MANIFEST, PKG, TARGETS, regEntry } from './config.js';
+import { GITIGNORE_HEADER, HOOK_CMD, LEGACY_LOCKFILE, LEGACY_MANIFEST, LOCKFILE, MANIFEST, PKG, TARGETS, regEntry } from './config.js';
 import { copyDir, hashDir, readJSON, sortKeys, writeJSON } from './fsutil.js';
 import { fetchSkill, skillAgents } from './sources.js';
 import { bold, die, dim, green, isQuiet, log, red, warn, yellow, short } from './ui.js';
@@ -9,8 +9,17 @@ import type { InstallOptions, InstallResult, Lock, LockEntry, Manifest, Target }
 export function findRoot(start = process.cwd()): string | null {
   for (let d = path.resolve(start); ; d = path.dirname(d)) {
     if (fs.existsSync(path.join(d, MANIFEST))) return d;
+    if (fs.existsSync(path.join(d, LEGACY_MANIFEST))) { migrateLegacy(d); return d; }
     if (path.dirname(d) === d) return null;
   }
+}
+
+/** harness.json / harness.lock → .bees / .bees.lock (content is unchanged). */
+function migrateLegacy(root: string): void {
+  if (fs.existsSync(path.join(root, MANIFEST))) return;
+  fs.renameSync(path.join(root, LEGACY_MANIFEST), path.join(root, MANIFEST));
+  if (fs.existsSync(path.join(root, LEGACY_LOCKFILE))) fs.renameSync(path.join(root, LEGACY_LOCKFILE), path.join(root, LOCKFILE));
+  warn(`Renamed ${LEGACY_MANIFEST} → ${MANIFEST} and ${LEGACY_LOCKFILE} → ${LOCKFILE}. Commit the rename.`);
 }
 
 export function loadProject(root: string): { manifest: Manifest; lock: Lock } {
@@ -28,7 +37,7 @@ export const targetsOf = (m: Manifest): Target[] =>
   );
 
 /**
- * Make the installed skills match harness.json, honoring harness.lock.
+ * Make the installed skills match .bees, honoring .bees.lock.
  * Resolves registry dependencies, protects local edits and unmanaged folders,
  * prunes what is no longer wanted, and rewrites the lock (unless frozen).
  */
@@ -68,15 +77,15 @@ export function install(root: string, manifest: Manifest, lock: Lock, opts: Inst
     const integrity = hashDir(fetched.dir);
 
     if (prev && prev.integrity !== integrity && !refresh) {
-      if (fetched.kind === 'file') warn(`${name}: local source changed since harness.lock; accepting new content.`);
+      if (fetched.kind === 'file') warn(`${name}: local source changed since .bees.lock; accepting new content.`);
       else if (!force) {
-        problems.push(`${name}: content differs from harness.lock (${short(prev.resolved)} → ${short(fetched.resolved)}). Run \`bee update ${name}\` to accept it.`);
+        problems.push(`${name}: content differs from .bees.lock (${short(prev.resolved)} → ${short(fetched.resolved)}). Run \`bee update ${name}\` to accept it.`);
         done.set(name, { ...prev });
         continue;
       }
     }
     if (frozen && (!prev || prev.integrity !== integrity)) {
-      problems.push(`${name}: ${prev ? 'changed' : 'missing'} in harness.lock (--frozen). Run \`bee install\` without --frozen and commit the lock.`);
+      problems.push(`${name}: ${prev ? 'changed' : 'missing'} in .bees.lock (--frozen). Run \`bee install\` without --frozen and commit the lock.`);
       continue;
     }
 
@@ -161,7 +170,7 @@ export function syncClaudeMd(root: string, skills: string[], create: boolean): v
   ].filter((x): x is string => !!x);
   const block = [
     '<!-- bee:start -->', '## Agent skills (managed by bee)', '',
-    'Skills are declared in `harness.json` and pinned in `harness.lock`. After cloning, run `bee install`. To add more, run `bee add <skill>` (see `bee search`).',
+    'Skills are declared in `.bees` and pinned in `.bees.lock`. After cloning, run `bee install`. To add more, run `bee add <skill>` (see `bee search`).',
     '', `Installed: ${[...skills].sort().map(s => '`' + s + '`').join(', ')}`,
     ...(rules.length ? ['', '### Working agreement', ...rules] : []),
     '<!-- bee:end -->',

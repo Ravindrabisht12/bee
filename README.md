@@ -1,13 +1,17 @@
 # skill-to-kill · 🐝 bee
 
-**Your project's process, as code.** `harness.json` declares which agent skills a
-project runs on, `harness.lock` pins exactly what was installed, and the `bee` CLI
-installs them anywhere. Clone a repo, run `bee install`, and your agent works the way
+**Your project's process, as code.** `.bees` declares which agent skills a project
+runs on, `.bees.lock` pins exactly what was installed, and the `bee` CLI installs them
+anywhere. Any language: Java, Python, Go, JS… Clone a repo, run `bee install`, and your agent works the way
 the team works. Your job becomes **reviewing specs, decisions, and explainers**, not
 re-typing prompts.
 
 ```bash
-bee init        # interview → decision step picks skills → harness.json → install
+curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/skill-to-kill/main/install.sh | bash
+```
+
+```bash
+bee init        # interview → decision step picks skills → .bees → install
 bee install     # teammate after cloning: get exactly the pinned skills
 bee add pdf     # add more any time (registry name, github:…, or ./local)
 ```
@@ -16,8 +20,8 @@ bee add pdf     # add more any time (registry name, github:…, or ./local)
 
 | npm | bee |
 |-----|-----|
-| `package.json` | `harness.json`: skills this project uses (commit it) |
-| `package-lock.json` | `harness.lock`: exact commit + content hash of each skill (commit it) |
+| `package.json` | `.bees`: skills this project uses (JSON; commit it) |
+| `package-lock.json` | `.bees.lock`: exact commit + content hash of each skill (commit it) |
 | `node_modules/` | `.claude/skills/*`: restored by `bee install` (auto-gitignored) |
 | `npm ci` | `bee install --frozen`: fail instead of drifting (CI) |
 
@@ -76,12 +80,29 @@ you: "build blobby"
 ## Install bee
 
 ```bash
-cd skill-to-kill && npm link        # puts `bee` on your PATH (bee ships with this skill library)
-# once this repo is on GitHub, teammates can use:  npm i -g github:<you>/skill-to-kill
+curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/skill-to-kill/main/install.sh | bash
 ```
 
-Other ways to use the skills without bee:
-- `./install.sh` symlinks every skill into `~/.claude/skills` (global; `--hermes` for Hermes).
+- **No Node, Python, or npm needed.** You get a standalone binary for your platform
+  (macOS arm64/x64, Linux x64/arm64), so it works the same in a Java, Go, or Python
+  project.
+- The binary is checksum-verified and installed to `~/.bee/bin`, which gets added to
+  your PATH.
+- `bees` is an alias for `bee`.
+- Update later with `bee upgrade`.
+- Pick a version or a fork with `BEE_VERSION=v0.3.0` or `BEE_REPO=you/fork`, set
+  before `bash`.
+- Windows: run it in WSL, or download `bee-windows-x64.zip` from Releases.
+- If a platform has no prebuilt binary and Node 18+ is installed, the installer falls
+  back to a source install.
+- Node users can also run `npm i -g github:YOUR_GITHUB_USER/skill-to-kill`.
+
+Some skills (`spec`, `adr`, `feature-explainer`) ship small Python helper scripts, so
+agents need `python3` to run those. macOS and most Linux distributions include it.
+
+Using the skills without bee:
+- `scripts/link-skills.sh` symlinks every skill into `~/.claude/skills` (global;
+  `--hermes` for Hermes).
 - Use the repo as a Claude Code plugin (`.claude-plugin/`).
 
 Prefer bee's per-project install for team projects. If you also keep the global
@@ -101,11 +122,14 @@ git+https://host/repo.git::path/to/skill#main    # any git host
 ```
 src/                        the CLI in TypeScript (strict), split by concern:
   cli.ts                      argument parsing + command dispatch
-  commands.ts                 init / install / add / remove / update / list / search
+  commands.ts                 init / install / add / remove / update / list / search / upgrade
   install.ts                  install engine: lock, integrity, pruning, .gitignore, CLAUDE.md, hook
   sources.ts                  bee: / github: / git+ / file: sources, git cache, pinning
   recommend.ts                project detection + rule-based and Claude-based skill choice
-dist/bee.mjs                built single-file CLI (committed, so git installs need no build step)
+dist/bee.mjs                built single-file CLI (committed, so source installs need no build step)
+install.sh                  the curl | bash installer (downloads release binaries)
+scripts/package-release.sh  builds standalone binaries with Bun → release/*.tar.gz + SHA256SUMS
+.github/workflows/          CI (tests on every PR) and Release (binaries on every v* tag)
 test/bee.test.mjs           end-to-end tests (offline; a local git repo stands in for GitHub)
 registry.json               skill catalog used by init / search / skill-advisor
 skills/<name>/SKILL.md      the skills (+ scripts/, references/, assets/)
@@ -122,6 +146,8 @@ npm test             # build + end-to-end tests
 npm run check        # both
 ```
 
-Adding a skill to the library: create `skills/<name>/SKILL.md` (template in
-`skills/skill-forge/assets/`), add an entry to `registry.json`, bump the version in
-`package.json`.
+Releasing: bump `version` in `package.json`, commit, then `git tag v0.3.0 && git push --tags`.
+The Release workflow builds the binaries, smoke-tests them through `install.sh`, and
+publishes them; `curl … | bash` picks them up immediately.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to add a skill or improve bee.
